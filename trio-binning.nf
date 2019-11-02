@@ -1,7 +1,5 @@
 #!/usr/bin/env nextflow
 
-// pachon is maternal; surface is paternal
-
 params.maternal_short_reads = 'reads/short_reads/AGTTCGTC-*.fastq.gz'
 params.paternal_short_reads = 'reads/short_reads/GTCATCGA-*.fastq.gz'
 params.input_reads = 'reads/long_reads/*.subreads.bam'
