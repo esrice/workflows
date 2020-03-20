@@ -1,12 +1,14 @@
 #!/usr/bin/env nextflow
 
 params.reference = 'ref.fa'
-reference_file = file(params.reference)
 params.scratch = '/local/scratch/esrbhb'
 
 Channel
     .fromFilePairs('../reads/SRR*_{1,2}.fastq')
+//    .fromSRA(file('library_list.txt').readLines())
     .set{reads}
+
+reference_file = file(params.reference)
 
 process bwa_index {
     publishDir 'bwa_index'
@@ -48,7 +50,7 @@ process align {
 
     """
     bwa mem -R "@RG\\tID:${accession}\\tSM:${accession}\\tPL:ILLUMINA" \
-        -t 16 ${ref} ${both_ends} | samtools view -bh - | \
+        -t ${task.cpus} ${ref} ${both_ends} | samtools view -bh - | \
         samtools fixmate -m - - | samtools sort - | \
         samtools markdup -r - ${accession}.bam
     samtools index ${accession}.bam
@@ -73,7 +75,7 @@ process smoove_call {
     file "${accession}-smoove.genotyped.vcf.gz" into unmerged
 
     """
-    smoove call --name ${accession}  --fasta ref.fa -p 8 \
+    smoove call --name ${accession} --fasta ref.fa -p ${task.cpus} \
         --genotype ${accession}.bam
     """
 }

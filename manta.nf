@@ -49,7 +49,7 @@ process align {
     file "${accession}.bam.bai" into aligned_index
 
     """
-    bwa mem -t 16 ${ref} ${both_ends} | samtools view -bh - | \
+    bwa mem -t ${task.cpus} ${ref} ${both_ends} | samtools view -bh - | \
         samtools fixmate -m - - | samtools sort - | \
         samtools markdup -r - ${accession}.bam
     samtools index ${accession}.bam
@@ -74,6 +74,6 @@ process manta {
     """
     bams=""; for bam in ${bams}; do bams+="--bam \$bam "; done
     configManta.py \$bams --referenceFasta ref.fa --runDir manta
-    manta/runWorkflow.py -j 16
+    manta/runWorkflow.py -j ${task.cpus}
     """
 }

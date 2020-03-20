@@ -3,10 +3,11 @@
 params.reference = '../polishing_nf/arrow_out/arrow.fa'
 params.subreads_folder = '../../reads/bams/'
 params.numChunks = 100
-params.bin = '~/htc/software/t/smrtlink/smrtcmds/bin'
 
 reference_fasta = file(params.reference)
 subreads = Channel.fromFilePairs(params.subreads_folder + '/*.{bam,bam.pbi}')
+
+process.conda = 'bioconda::pbmm2 bioconda::pbcoretools bioconda::pbgcpp'
 
 process make_reference {
     input:
@@ -16,8 +17,7 @@ process make_reference {
     file 'ref.xml' into reference_xml
 
     """
-    $params.bin/dataset create --type ReferenceSet --generateIndices \
-        ref.xml ref.fa
+    dataset create --type ReferenceSet --generateIndices ref.xml ref.fa
     """
 }
 
@@ -34,7 +34,7 @@ process align {
     file "${id}.aln.bam" into aligned
 
     """
-    TMPDIR=\$(pwd) $params.bin/pbmm2 align --sort -j 16 --preset SUBREAD \
+    TMPDIR=\$(pwd) pbmm2 align --sort -j ${task.cpus} --preset SUBREAD \
         ref.xml ${id}.bam ${id}.aln.bam
     """
 }
@@ -47,10 +47,9 @@ process split_by_contig {
     file 'all_aligned.*.xml' into aligned_split
 
     """
-    $params.bin/dataset create --generateIndices --type AlignmentSet \
+    dataset create --generateIndices --type AlignmentSet \
         all_aligned.xml *.aln.bam
-    $params.bin/dataset split --contig \
-        --chunks $params.numChunks all_aligned.xml
+    dataset split --contig --chunks $params.numChunks all_aligned.xml
     """
 }
 
@@ -66,7 +65,7 @@ process arrow {
     file "${aligned_chunk.baseName}.fq" into fastq_chunks
 
     """
-    $params.bin/gcpp $aligned_chunk -j 16 -q 20 -r ref.xml \
+    gcpp $aligned_chunk -j ${task.cpus} -q 20 -r ref.xml \
         -o ${aligned_chunk.baseName}.fa,${aligned_chunk.baseName}.fq
     """
 }
