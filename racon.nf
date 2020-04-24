@@ -25,83 +25,65 @@ process faidx {
 
 process align {
     cpus 16
+    memory '128 GB'
 
     input:
     file 'ref.fa' from reference
     set id, file(inputReadFastq) from readsToAlign
 
     output:
-    file "${id}.paf" into aligned
+    file "${id}.bam" into aligned
 
     """
-    minimap2 -x ava-ont -t ${task.cpus} ref.fa ${inputReadFastq} > ${id}.paf
-    """
-}
-
-process catReads {
-    input:
-    file('*.fastq.gz') from readsToCat.collect()
-
-    output:
-    file('all_reads.fastq.gz') into cattedReads
-
-    """
-    zcat *.fastq.gz | gzip > all_reads.fastq.gz
+    minimap2 -a -x ava-ont -t ${task.cpus} ref.fa ${inputReadFastq} | \
+        samtools view -bh - | samtools sort - > ${id}.bam
     """
 }
 
-process joinPafs {
-    cpus 16
+process mergeBams {
     publishDir 'aligned'
 
     input:
-    file '*.paf' from aligned.collect()
+    file '*.bam' from aligned.collect()
 
     output:
-    file 'all.paf' into alignedAll
+    file 'all.bam' into alignedAll
+    file 'all.bam.bai' into alignedAllBai
 
     """
-    cat *.paf > all.paf
+    samtools merge all.bam *.bam
+    samtools index all.bam
     """
 }
 
-process splitByContig {
-    input:
-    file 'ref.fa' from reference
-    file 'ref.fa.fai' from referenceFaidx
-
-    output:
-    file 'contig_*.fa' into contigs
-
-    """
-    cut -f1 ref.fa.fai | while read ctg; do
-        samtools faidx ref.fa \$ctg > contig_\${ctg}.fa
-    done
-    """
-}
-
-contigs
-    .flatMap()
-    .map { tuple ((it.baseName =~ /contig_(.*)/)[0][1], it) }
+referenceFaidx.into { referenceFaidx1; referenceFaidx2 }
+referenceFaidx1
+    .splitCsv(sep: "\t")
+    .map { it[0] }
+    .combine(referenceFaidx2)
     .combine(alignedAll)
-    .combine(cattedReads)
-    .set { contigsPafReads }
+    .combine(alignedAllBai)
+    .set { contigsRefBam }
 
 process racon {
     cpus 16
+    memory '64 GB'
 
     input:
     set val(ctg),
-        file('contig.fa'),
-        file('all.paf'),
-        file('all.fastq.gz') from contigsPafReads
+        file('ref.fa.fai'),
+        file('all.bam'),
+        file('all.bam.bai') from contigsRefBam
+    file 'ref.fa' from reference
 
     output:
     file("${ctg}_corrected.fa") into corrected
 
     """
-    awk -v ctg=$ctg '\$6 == ctg' all.paf > contig.paf
-    racon -t ${task.cpus} all.fastq.gz contig.paf contig.fa \
+    samtools faidx ref.fa $ctg > contig.fa
+    samtools view all.bam $ctg > contig.sam
+    samtools fastq contig.sam > contig.fastq
+    racon -t ${task.cpus} contig.fastq contig.sam contig.fa \
         > ${ctg}_corrected.fa
     """
 }
