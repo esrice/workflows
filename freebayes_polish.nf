@@ -73,6 +73,7 @@ process concat_and_consensus {
     output:
     file "polished.fa" into polished
     file "joined.bcf" into variants
+    file "report.txt" into report
 
     """
     bcftools concat -n *.bcf | bcftools view -Ou -e'type="ref"' \
@@ -80,6 +81,15 @@ process concat_and_consensus {
     bcftools index joined.bcf
     bcftools consensus -i'QUAL>1 && (GT="AA" || GT="Aa")' \
         -Hla -f ${params.assembly} joined.bcf > polished.fa
+
+    snp=\$(bcftools view -i'QUAL>1 && (GT="AA" || GT="Aa")' \
+        -Ha joined.bcf | grep -c 'TYPE=snp')
+    ins=\$(bcftools view -i'QUAL>1 && (GT="AA" || GT="Aa")' \
+        -Ha joined.bcf | grep -c 'TYPE=ins')
+    del=\$(bcftools view -i'QUAL>1 && (GT="AA" || GT="Aa")' \
+        -Ha joined.bcf | grep -c 'TYPE=del')
+    echo "\${snp} SNPs, \${ins} insertions, and \${del} deletions corrected." \
+        > report.txt
     """
 }
 
