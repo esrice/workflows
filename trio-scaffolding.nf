@@ -4,6 +4,7 @@ params.damReference = '../pepper_maternal/pepper_out/pepper_out/pepper_out_peppe
 params.sireReference = '../pepper_paternal/pepper_out/pepper_out/pepper_out_pepper.fa'
 params.hicReads = 'reads/HiC_*_R{1,2}_001.fastq.gz'
 params.enzyme = 'GATC'
+params.scratch = '/scratch/esrbhb/'
 
 damReference = file(params.damReference)
 sireReference = file(params.sireReference)
@@ -162,7 +163,7 @@ combinedBranchedBeds.sire.map { it[1] }.set { sireBeds }
 
 process salsaDam {
     container 'esrice/hic-pipeline:latest'
-    publishDir 'salsa_out'
+    publishDir 'dam_out'
 
     input:
     file 'ref.fa' from damReference
@@ -173,7 +174,7 @@ process salsaDam {
     file 'salsa/*' into salsa_dam
 
     """
-    cat ${beds} | sort -k 4 > all.bed
+    cat ${beds} | sort -k 4 -T ${params.scratch} > all.bed
     python \$SALSA_DIR/run_pipeline.py -a ref.fa -l ref.fa.fai \
         -b all.bed -e ${params.enzyme} -o salsa -m yes -i 10 -p yes
     """
@@ -181,7 +182,7 @@ process salsaDam {
 
 process salsaSire {
     container 'esrice/hic-pipeline:latest'
-    publishDir 'salsa_out'
+    publishDir 'sire_out'
 
     input:
     file 'ref.fa' from sireReference
@@ -192,7 +193,7 @@ process salsaSire {
     file 'salsa/*' into salsa_sire
 
     """
-    cat ${beds} | sort -k 4 > all.bed
+    cat ${beds} | sort -k 4 -T ${params.scratch} > all.bed
     python \$SALSA_DIR/run_pipeline.py -a ref.fa -l ref.fa.fai \
         -b all.bed -e ${params.enzyme} -o salsa -m yes -i 10 -p yes
     """
